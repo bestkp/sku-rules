@@ -1,10 +1,10 @@
 import { Sequelize, Model, DataTypes } from "sequelize";
 const sequelize = new Sequelize({
-  database: "d77p8bhfraaq3q",
-  host: "ec2-3-232-22-121.compute-1.amazonaws.com",
+  database: "ddfr46famefk3m",
+  host: "ec2-54-80-122-11.compute-1.amazonaws.com",
   port: 5432,
-  username: "cltfdgffsxlimz",
-  password: "ef60284f74a1b5be189b1265065ab3870f69ea221a509910624cb5e879a1ebcc",
+  username: "acxkxgikmtfzpa",
+  password: "96e192a7b9586543172a79e4e61a89d7f6567d3950946e58ccbd8920c5439d59",
   dialect: "postgres",
   ssl: true,
   dialectOptions: {
