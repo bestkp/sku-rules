@@ -204,7 +204,7 @@ export async function createServer(
     console.log("app-save received", { storeId: shopId, ...postData });
     try {
       let response = await upsert({ storeID: shopId, ...postData });
-      res.status(200).send({status: 200}); 
+      res.status(200).send({status: 200});
     } catch (err) {
       console.log('SSSS', err)
       res.status(500).send({
