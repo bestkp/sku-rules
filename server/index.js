@@ -6,11 +6,15 @@ import { Shopify, ApiVersion } from "@shopify/shopify-api";
 import crypto from "crypto";
 import async from "async";
 import bodyParser from "body-parser";
-import getRawBody from 'raw-body';
+import getRawBody from "raw-body";
 import * as model from "../model/index.js";
 import { upsert } from "../model/index.js";
 import { genNewSku, getVariantsByProducts } from "../src/utils/util.js";
-import {CREATE_APP_USAGE_RECORD, GET_SHOP_COLLECTIONS, UPDATE_PRODUCT_VARIANT_SKU} from './handler.js';
+import {
+  CREATE_APP_USAGE_RECORD,
+  GET_SHOP_COLLECTIONS,
+  UPDATE_PRODUCT_VARIANT_SKU,
+} from "./handler.js";
 import "dotenv/config";
 
 import applyAuthMiddleware from "./middleware/auth.js";
@@ -39,7 +43,7 @@ const ACTIVE_SHOPIFY_SHOPS = {};
 Shopify.Webhooks.Registry.addHandler("APP_UNINSTALLED", {
   path: "/webhooks/app_uninstall",
   webhookHandler: async (topic, shop, body) => {
-    delete ACTIVE_SHOPIFY_SHOPS[shop]
+    delete ACTIVE_SHOPIFY_SHOPS[shop];
   },
 });
 
@@ -52,11 +56,10 @@ export async function createServer(
   app.set("top-level-oauth-cookie", TOP_LEVEL_OAUTH_COOKIE);
   app.set("active-shopify-shops", ACTIVE_SHOPIFY_SHOPS);
   app.set("use-online-tokens", USE_ONLINE_TOKENS);
-  app.use(bodyParser.text() )
   app.use(cookieParser(Shopify.Context.API_SECRET_KEY));
 
   applyAuthMiddleware(app);
-  
+
   app.use(express.json());
 
   app.use((req, res, next) => {
@@ -72,15 +75,36 @@ export async function createServer(
     next();
   });
 
-  app.post("/webhooks/app_uninstall", verifyShopifyWebhooks, async (req, res) => {
-    try {
-      await Shopify.Webhooks.Registry.process(req, res);
-      console.log(`Webhook processed, returned status code 200`);
-    } catch (error) {
-      console.log(`Failed to process webhook: ${error}`);
-      res.status(500).send(error.message);
+  async function verifyShopifyWebhooks(req, res, next) {
+    const hmac = req.get("x-shopify-hmac-sha256");
+    // const shop = req.get('x-shopify-shop-domain')
+    const rawBody = await getRawBody(req);
+    const digest = crypto
+      .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
+      .update(new Buffer(rawBody, "utf8"))
+      .digest("base64");
+
+    if (digest !== hmac) {
+      res.status(401).send("Couldn't verify Shopify webhook HMAC");
+    } else {
+      console.log("Successfully verified Shopify webhook HMAC");
     }
-  });
+    await next();
+  }
+
+  app.post(
+    "/webhooks/app_uninstall",
+    verifyShopifyWebhooks,
+    async (req, res) => {
+      try {
+        await Shopify.Webhooks.Registry.process(req, res);
+        console.log(`Webhook processed, returned status code 200`);
+      } catch (error) {
+        console.log(`Failed to process webhook: ${error}`);
+        res.status(500).send(error.message);
+      }
+    }
+  );
 
   app.get("/products-count", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
@@ -92,12 +116,12 @@ export async function createServer(
     res.status(200).send(countData);
   });
 
-// app 拉取配置
-  app.get("/app/getConfig", async (req, res) => {
+  // app 拉取配置
+  app.get("/app/getConfig", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
     const client = new Shopify.Clients.Graphql(
-        session.shop,
-        session.accessToken
+      session.shop,
+      session.accessToken
     );
     const { queryId } = model;
     try {
@@ -106,41 +130,27 @@ export async function createServer(
       // const productsCount = await getProductsCount();
       const [config, collections] = await Promise.all([
         queryId(shopId),
-        client.query({data: GET_SHOP_COLLECTIONS}),
+        client.query({ data: GET_SHOP_COLLECTIONS }),
       ]);
       const collectionData = collections.body.data.collections;
-      res.status(200).send({status: 200,
-        msg: "ok",
-        data: { config: config || {}, collections: collectionData },})
+      res
+        .status(200)
+        .send({
+          status: 200,
+          msg: "ok",
+          data: { config: config || {}, collections: collectionData },
+        });
     } catch (err) {
       res.status(500).send({
         status: 4040,
         msg: "error",
         data: err,
-      })
+      });
     }
   });
 
-  async function verifyShopifyWebhooks(req, res, next) {
-    const { headers, request } = req;
-    const hmac = req.get('x-shopify-hmac-sha256')
-    // const shop = req.get('x-shopify-shop-domain')
-    const rawBody = await getRawBody(req)
-    const digest = crypto
-        .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
-        .update(new Buffer(rawBody, "utf8"))
-        .digest("base64");
-
-    if (digest !== hmac) {
-      res.status(401).send("Couldn't verify Shopify webhook HMAC")
-    } else {
-      console.log("Successfully verified Shopify webhook HMAC");
-    }
-    await next();
-  }
-
   // app 获取产品变体列表
-  app.get("/app/getProducts", async (req, res) => {
+  app.get("/app/getProducts", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
     // const countData = await Product.count({ session });
     const { id } = req.query;
@@ -154,12 +164,13 @@ export async function createServer(
         status: 200,
         msg: "ok",
         data: products,
-      })
+      });
     } else {
       res.status(200).send({
         status: 4040,
         msg: "ok",
-        data: products})
+        data: products,
+      });
     }
   });
 
@@ -171,8 +182,8 @@ export async function createServer(
     };
     try {
       const { Product } = await import(
-          `@shopify/shopify-api/dist/rest-resources/${Shopify.Context.API_VERSION}/index.js`
-          );
+        `@shopify/shopify-api/dist/rest-resources/${Shopify.Context.API_VERSION}/index.js`
+      );
       let params = {
         fields: "handle, id, images, status, title, variants, image",
       };
@@ -184,7 +195,7 @@ export async function createServer(
           collection_id: id,
           limit: 250,
         };
-        collectionProducts = await Product.all({session, ...params})
+        collectionProducts = await Product.all({ session, ...params });
         data = {
           products: collectionProducts,
           count: { count: collectionProducts.length },
@@ -192,8 +203,8 @@ export async function createServer(
       } else {
         params.limit = limit;
         collectionProducts = await Promise.all([
-          Product.all({session, ...params}),
-          Product.count({session})
+          Product.all({ session, ...params }),
+          Product.count({ session }),
         ]);
         data = {
           products: collectionProducts[0],
@@ -207,45 +218,56 @@ export async function createServer(
       return null;
     }
   };
-
+  // app.use(bodyParser.text() )
   // app 保存配置 / 更新
-  app.post("/app/save", async (req, res) => {
-    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
-    const { upsert } = model;
-    const postData = JSON.parse(req.body);
-    const shopId = session.shop;
-    console.log("app-save received", { storeId: shopId, ...postData });
-    try {
-      let response = await upsert({ storeID: shopId, ...postData });
-      res.status(200).send({status: 200});
-    } catch (err) {
-      console.log('SSSS', err)
-      res.status(500).send({
-        status: 4040,
-        data: err,
-      });
+  app.post(
+    "/app/save",
+    verifyRequest(app),
+    bodyParser.text(),
+    async (req, res) => {
+      const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+      const { upsert } = model;
+      const postData = JSON.parse(req.body);
+      console.log("ssssave", postData);
+      const shopId = session.shop;
+      console.log("app-save received", { storeId: shopId, ...postData });
+      try {
+        let response = await upsert({ storeID: shopId, ...postData });
+        res.status(200).send({ status: 200 });
+      } catch (err) {
+        console.log("SSSS", err);
+        res.status(500).send({
+          status: 4040,
+          data: err,
+        });
+      }
     }
-  });
+  );
   // 更新sku
-  app.post("/app/updateSku", async (req, res) => {
-    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
-    try {
-      const config = JSON.parse(req.body);
-      await startUpdate(session, config, session.shop);
-      res.status(200).send({
-        status: 200,
-        msg: "ok",
-        data: { status: "start" },
-      });
-    } catch (err) {
-      res.status(500).send({
-        status: 4040,
-        msg: "error",
-        data: err,
-      });
+  app.post(
+    "/app/updateSku",
+    verifyRequest(app),
+    bodyParser.text(),
+    async (req, res) => {
+      const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+      try {
+        const config = JSON.parse(req.body);
+        await startUpdate(session, config, session.shop);
+        res.status(200).send({
+          status: 200,
+          msg: "ok",
+          data: { status: "start" },
+        });
+      } catch (err) {
+        res.status(500).send({
+          status: 4040,
+          msg: "error",
+          data: err,
+        });
+      }
     }
-  });
-  app.get("/app/updateStatus", async (req, res) => {
+  );
+  app.get("/app/updateStatus", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
     try {
       // const updateStatus = store.get("updateStatus");
@@ -266,8 +288,8 @@ export async function createServer(
   let updateRes = null;
   const startUpdate = async (session, config, shopId) => {
     const client = new Shopify.Clients.Graphql(
-        session.shop,
-        session.accessToken
+      session.shop,
+      session.accessToken
     );
     // const variantsCount = await getProductVariantsCount();
     const { upsert } = model;
@@ -284,7 +306,12 @@ export async function createServer(
     let productUpdated = 0;
     console.log("-------------------开始执行---------------", Date.now());
     async function loopUpdate(cursor) {
-      const productsObj = await getProductsFunc(session, shortId, LIMIT, cursor);
+      const productsObj = await getProductsFunc(
+        session,
+        shortId,
+        LIMIT,
+        cursor
+      );
       const {
         products,
         count: { count },
@@ -300,80 +327,84 @@ export async function createServer(
       }
       // console.log("StartUPdate", config, products, variants.length);
       async.mapLimit(
-          variants,
-          6,
-          async function (variant, callback) {
-            // console.log(variant, 'current variant')
-            try {
-              const id = variant.variantObj.admin_graphql_api_id;
-              let curIndex = 0;
-              if (count1 === 0) {
-                curIndex = variants.findIndex(
-                    (vart) => vart.variantObj.admin_graphql_api_id === id
-                );
-              } else {
-                curIndex = count1 + 5;
-              }
-              const sku = genNewSku(variant, config, curIndex);
-              const response = await client.query({ data: UPDATE_PRODUCT_VARIANT_SKU(id, sku)});
-              count1++;
-              const { product_id } = variant.variantObj;
-              if (!whichProductIndex[product_id]) {
-                whichProductIndex[product_id] = {
-                  variantsNum: variant.variants.length,
-                  ids: [],
-                };
-              }
-              if (!whichProductIndex[product_id].ids.includes(id)) {
-                whichProductIndex[product_id].ids.push(id);
-              }
-              if (
-                  whichProductIndex[product_id].ids.length ===
-                  whichProductIndex[product_id].variantsNum
-              ) {
-                //   某一个产品更新完成
-                productUpdated++;
-              }
-              // console.log(
-              //   product_id,
-              //   whichProductIndex[product_id].ids.length,
-              //   whichProductIndex[product_id].variantsNum,
-              //   productUpdated
-              // );
-              updateRes = {
-                is_generating: true,
-                products_updated: productUpdated,
-                total_products: count,
-                total_variant: count1 + 1,
-              };
-              callback && callback(null, variant);
-            } catch (err) {
-              console.log("has updated skur err:", err);
-            }
-          },
-          async (err, results) => {
-            if (err) throw err;
-            times++;
-            // console.log("loop hahahha", productUpdated, count);
-            if (productUpdated < count) {
-              await loopUpdate(cursor);
-            } else {
-              console.log(
-                  "-=-=-=-=-=-=-=-, hahahhhahahah, 都更新完了哦",
-                  Date.now()
+        variants,
+        6,
+        async function (variant, callback) {
+          // console.log(variant, 'current variant')
+          try {
+            const id = variant.variantObj.admin_graphql_api_id;
+            let curIndex = 0;
+            if (count1 === 0) {
+              curIndex = variants.findIndex(
+                (vart) => vart.variantObj.admin_graphql_api_id === id
               );
-              updateRes = {
-                is_generating: false,
-                products_updated: count,
-                total_products: count,
-                total_variant: count1,
-              };
-              await upsert({ storeID: shopId, lastGen: count1 });
-              const billing = await model.queryBilling(shopId);
-              console.log("app usage payload", shopId, billing.subscription_id);
-              await client.query({data: CREATE_APP_USAGE_RECORD(billing, count1)})
+            } else {
+              curIndex = count1 + 5;
             }
+            const sku = genNewSku(variant, config, curIndex);
+            const response = await client.query({
+              data: UPDATE_PRODUCT_VARIANT_SKU(id, sku),
+            });
+            count1++;
+            const { product_id } = variant.variantObj;
+            if (!whichProductIndex[product_id]) {
+              whichProductIndex[product_id] = {
+                variantsNum: variant.variants.length,
+                ids: [],
+              };
+            }
+            if (!whichProductIndex[product_id].ids.includes(id)) {
+              whichProductIndex[product_id].ids.push(id);
+            }
+            if (
+              whichProductIndex[product_id].ids.length ===
+              whichProductIndex[product_id].variantsNum
+            ) {
+              //   某一个产品更新完成
+              productUpdated++;
+            }
+            // console.log(
+            //   product_id,
+            //   whichProductIndex[product_id].ids.length,
+            //   whichProductIndex[product_id].variantsNum,
+            //   productUpdated
+            // );
+            updateRes = {
+              is_generating: true,
+              products_updated: productUpdated,
+              total_products: count,
+              total_variant: count1 + 1,
+            };
+            callback && callback(null, variant);
+          } catch (err) {
+            console.log("has updated skur err:", err);
           }
+        },
+        async (err, results) => {
+          if (err) throw err;
+          times++;
+          // console.log("loop hahahha", productUpdated, count);
+          if (productUpdated < count) {
+            await loopUpdate(cursor);
+          } else {
+            console.log(
+              "-=-=-=-=-=-=-=-, hahahhhahahah, 都更新完了哦",
+              Date.now()
+            );
+            updateRes = {
+              is_generating: false,
+              products_updated: count,
+              total_products: count,
+              total_variant: count1,
+            };
+            await upsert({ storeID: shopId, lastGen: count1 });
+            const billing = await model.queryBilling(shopId);
+            console.log("app usage payload", shopId, billing.subscription_id);
+            await client.query({
+              data: CREATE_APP_USAGE_RECORD(billing, count1),
+            });
+          }
+        }
       );
     }
     await loopUpdate(cursor);
@@ -389,23 +420,27 @@ export async function createServer(
   });
 
   // Mandatory Webhooks
-  app.post("/customers/data_request", verifyShopifyWebhooks, async (req, res) => {
-    try {
-      res.status(200);
-    } catch (error) {
-      console.log(`Failed to process webhook: ${error}`);
+  app.post(
+    "/customers/data_request",
+    verifyShopifyWebhooks,
+    async (req, res) => {
+      try {
+        res.status(200).send();
+      } catch (error) {
+        console.log(`Failed to process webhook: ${error}`);
+      }
     }
-  });
+  );
   app.post("/customers/redact", verifyShopifyWebhooks, async (req, res) => {
     try {
-      res.status(200)
+      res.status(200).send();
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
     }
   });
   app.post("/shop/redact", verifyShopifyWebhooks, async (req, res) => {
     try {
-      res.status(200)
+      res.status(200).send();
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
     }
@@ -418,9 +453,12 @@ export async function createServer(
     if (chargeId) {
       const session = app.get("currentSession");
       const { RecurringApplicationCharge } = await import(
-          `@shopify/shopify-api/dist/rest-resources/${Shopify.Context.API_VERSION}/index.js`
-          );
-      const recurringObj = await RecurringApplicationCharge.find({session, id: chargeId}) // await ctx.restApi.queryBillingObj(chargeId);
+        `@shopify/shopify-api/dist/rest-resources/${Shopify.Context.API_VERSION}/index.js`
+      );
+      const recurringObj = await RecurringApplicationCharge.find({
+        session,
+        id: chargeId,
+      }); // await ctx.restApi.queryBillingObj(chargeId);
       console.log("has charge id", chargeId, session, recurringObj);
       await upsertBilling({
         storeID: shop,

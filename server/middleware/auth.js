@@ -1,9 +1,12 @@
 import { Shopify } from "@shopify/shopify-api";
 
 import topLevelAuthRedirect from "../helpers/top-level-auth-redirect.js";
-import {GET_APP_SUBSCRIPTION_STATUS, GET_SUBSCRIPTION_URL} from "../handler.js";
-import {getParamString} from '../../src/utils/util.js';
-import {upsertBilling} from "../../model/index.js"
+import {
+  GET_APP_SUBSCRIPTION_STATUS,
+  GET_SUBSCRIPTION_URL,
+} from "../handler.js";
+import { getParamString } from "../../src/utils/util.js";
+import { upsertBilling } from "../../model/index.js";
 
 export default function applyAuthMiddleware(app) {
   app.get("/auth", async (req, res) => {
@@ -15,7 +18,7 @@ export default function applyAuthMiddleware(app) {
       req,
       res,
       req.query.shop,
-      "auth/callback",
+      "/auth/callback",
       app.get("use-online-tokens")
     );
 
@@ -55,7 +58,7 @@ export default function applyAuthMiddleware(app) {
           [session.shop]: session.scope,
         })
       );
-      app.set("currentSession", session)
+      app.set("currentSession", session);
 
       const response = await Shopify.Webhooks.Registry.register({
         shop: session.shop,
@@ -70,27 +73,55 @@ export default function applyAuthMiddleware(app) {
         );
       }
       const client = new Shopify.Clients.Graphql(
-          session.shop,
-          session.accessToken
+        session.shop,
+        session.accessToken
       );
-      const subScriptionResponse = await client.query({ data: GET_APP_SUBSCRIPTION_STATUS });
-      const hasSubscription = subScriptionResponse?.body?.data?.currentAppInstallation?.activeSubscriptions?.[0]?.status === "ACTIVE"
-      console.log('HHHHHHH', hasSubscription, JSON.stringify(subScriptionResponse));
-      if(hasSubscription) {
+      const subScriptionResponse = await client.query({
+        data: GET_APP_SUBSCRIPTION_STATUS,
+      });
+      const hasSubscription =
+        subScriptionResponse?.body?.data?.currentAppInstallation
+          ?.activeSubscriptions?.[0]?.status === "ACTIVE";
+      console.log(
+        "HHHHHHH",
+        hasSubscription,
+        JSON.stringify(subScriptionResponse)
+      );
+      if (hasSubscription) {
         // Redirect to app with shop parameter upon auth
         res.redirect(`/?shop=${session.shop}&host=${host}`);
       } else {
         const query_string = getParamString({ shop: session.shop, host });
         // await getSubscriptionUrl(ctx, query_string, shop);
-        const subscriptionCallbackUrl = process.env.HOST + query_string
-        const appSubscriptionCreate = await client.query({data: {"query": GET_SUBSCRIPTION_URL, "variables": {"returnUrl": subscriptionCallbackUrl}}})
-        await upsertBilling({storeID: session.shop, subscription_id: appSubscriptionCreate.body.data.appSubscriptionCreate.appSubscription.lineItems[1].id})
-        console.log('upsertBilling', JSON.stringify(appSubscriptionCreate.body.data.appSubscriptionCreate.confirmationUrl))
-        console.log('comfirmationUrl', appSubscriptionCreate.body.data.appSubscriptionCreate.confirmationUrl)
-        console.log('subscriptionCallbackUrl', subscriptionCallbackUrl)
-        res.redirect(appSubscriptionCreate.body.data.appSubscriptionCreate.confirmationUrl)
+        const subscriptionCallbackUrl = process.env.HOST + query_string;
+        const appSubscriptionCreate = await client.query({
+          data: {
+            query: GET_SUBSCRIPTION_URL,
+            variables: { returnUrl: subscriptionCallbackUrl },
+          },
+        });
+        await upsertBilling({
+          storeID: session.shop,
+          subscription_id:
+            appSubscriptionCreate.body.data.appSubscriptionCreate
+              .appSubscription.lineItems[1].id,
+        });
+        console.log(
+          "upsertBilling",
+          JSON.stringify(
+            appSubscriptionCreate.body.data.appSubscriptionCreate
+              .confirmationUrl
+          )
+        );
+        console.log(
+          "comfirmationUrl",
+          appSubscriptionCreate.body.data.appSubscriptionCreate.confirmationUrl
+        );
+        console.log("subscriptionCallbackUrl", subscriptionCallbackUrl);
+        res.redirect(
+          appSubscriptionCreate.body.data.appSubscriptionCreate.confirmationUrl
+        );
       }
-
     } catch (e) {
       switch (true) {
         case e instanceof Shopify.Errors.InvalidOAuthError:

@@ -61,13 +61,13 @@ export const GET_APP_SUBSCRIPTION_STATUS = `
       }
     }
   }
-`
+`;
 export const GET_SUBSCRIPTION_URL = `
     mutation AppSubscriptionCreate($returnUrl: URL! ) {
       appSubscriptionCreate(
           name: "SKU RULES PREMIUM"
           returnUrl: $returnUrl
-          test: false,
+          test: true,
           trialDays: 3,
           lineItems: [
             {
@@ -103,13 +103,13 @@ export const GET_SUBSCRIPTION_URL = `
 `;
 // 获取订阅信息
 const queryBillingObj = async (chargeId, client) => {
-    try {
-        console.log("get queryBillingObj", chargeId);
-        const data = await client.get({
-            path: `recurring_application_charges/${chargeId}`,
-        });
-        return data.body.recurring_application_charge;
-    } catch (err) {
-        throw new Error("recurring_application_charges: " + err);
-    }
+  try {
+    console.log("get queryBillingObj", chargeId);
+    const data = await client.get({
+      path: `recurring_application_charges/${chargeId}`,
+    });
+    return data.body.recurring_application_charge;
+  } catch (err) {
+    throw new Error("recurring_application_charges: " + err);
+  }
 };
