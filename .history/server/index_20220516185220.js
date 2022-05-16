@@ -56,21 +56,6 @@ export async function createServer(
   app.use(cookieParser(Shopify.Context.API_SECRET_KEY));
 
   applyAuthMiddleware(app);
-  
-  app.use(express.json());
-
-  app.use((req, res, next) => {
-    const shop = req.query.shop;
-    if (Shopify.Context.IS_EMBEDDED_APP && shop) {
-      res.setHeader(
-        "Content-Security-Policy",
-        `frame-ancestors https://${shop} https://admin.shopify.com;`
-      );
-    } else {
-      res.setHeader("Content-Security-Policy", `frame-ancestors 'none';`);
-    }
-    next();
-  });
 
   app.post("/webhooks/app_uninstall", verifyShopifyWebhooks, async (req, res) => {
     try {
@@ -409,6 +394,22 @@ export async function createServer(
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
     }
+  });
+
+  app.use(express.json());
+
+  app.use((req, res, next) => {
+    const sessionShop = app.get("currentSession");
+    const shop = req.query.shop || sessionShop.shop;
+    if (Shopify.Context.IS_EMBEDDED_APP && shop) {
+      res.setHeader(
+        "Content-Security-Policy",
+        `frame-ancestors https://${shop} https://admin.shopify.com;`
+      );
+    } else {
+      res.setHeader("Content-Security-Policy", `frame-ancestors 'none';`);
+    }
+    next();
   });
 
   app.use("/*", async (req, res, next) => {
