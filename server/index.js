@@ -6,6 +6,7 @@ import { Shopify, ApiVersion } from "@shopify/shopify-api";
 import crypto from "crypto";
 import async from "async";
 import bodyParser from "body-parser";
+import getRawBody from 'raw-body';
 import * as model from "../model/index.js";
 import { upsert } from "../model/index.js";
 import { genNewSku, getVariantsByProducts } from "../src/utils/util.js";
@@ -36,7 +37,7 @@ Shopify.Context.initialize({
 // persist this object in your app.
 const ACTIVE_SHOPIFY_SHOPS = {};
 Shopify.Webhooks.Registry.addHandler("APP_UNINSTALLED", {
-  path: "/webhooks",
+  path: "/webhooks/app_uninstall",
   webhookHandler: async (topic, shop, body) => {
     delete ACTIVE_SHOPIFY_SHOPS[shop]
   },
@@ -56,7 +57,7 @@ export async function createServer(
 
   applyAuthMiddleware(app);
 
-  app.post("/webhooks", async (req, res) => {
+  app.post("/webhooks/app_uninstall", verifyShopifyWebhooks, async (req, res) => {
     try {
       await Shopify.Webhooks.Registry.process(req, res);
       console.log(`Webhook processed, returned status code 200`);
@@ -107,12 +108,9 @@ export async function createServer(
 
   async function verifyShopifyWebhooks(req, res, next) {
     const { headers, request } = req;
-    const {
-      "x-shopify-hmac-sha256": hmac,
-      "x-shopify-shop-domain": shop,
-    } = headers;
-    const { rawBody } = request;
-
+    const hmac = req.get('x-shopify-hmac-sha256')
+    // const shop = req.get('x-shopify-shop-domain')
+    const rawBody = await getRawBody(req)
     const digest = crypto
         .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
         .update(new Buffer(rawBody, "utf8"))

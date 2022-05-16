@@ -3,8 +3,8 @@ const sequelize = new Sequelize({
   database: "d9dfetrv38110r",
   host: "ec2-52-3-2-245.compute-1.amazonaws.com",
   port: 5432,
-  username: "paikimzbhjuioq",
-  password: "249471ce3018e1b1727e55b7d78bb3d1aac364d1e018603edd0d7446baea8ad9",
+  username: "acxkxgikmtfzpa",
+  password: "96e192a7b9586543172a79e4e61a89d7f6567d3950946e58ccbd8920c5439d59",
   dialect: "postgres",
   ssl: true,
   dialectOptions: {
