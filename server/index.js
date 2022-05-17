@@ -128,9 +128,9 @@ export async function createServer(
   //   }
   // }
 
-  app.post("/webhooks", async (req, res) => {
+  app.post("//webhooks", async (req, res) => {
     try {
-      console.log(`Webhook before processed`);
+      console.log(`Webhook before processed`, req.url);
       // const handler = await Shopify.Webhooks.Registry.getHandler("APP_UNINSTALLED");
       // const shop = req.get("X-Shopify-Shop-Domain");
       // const topic = req.get("X-Shopify-Topic");
