@@ -41,7 +41,7 @@ Shopify.Context.initialize({
 // persist this object in your app.
 const ACTIVE_SHOPIFY_SHOPS = {};
 Shopify.Webhooks.Registry.addHandler("APP_UNINSTALLED", {
-  path: "/webhooks/app_uninstall",
+  path: "/webhooks",
   webhookHandler: async (topic, shop, body) => {
     delete ACTIVE_SHOPIFY_SHOPS[shop];
   },
@@ -100,20 +100,16 @@ export async function createServer(
     }
   }
 
-  app.post(
-    "/webhooks/app_uninstall",
-    verifyShopifyWebhooks,
-    async (req, res) => {
-      try {
-        await Shopify.Webhooks.Registry.process(req, res);
-        console.log(`Webhook processed, returned status code 200`);
-        res.status(200).send({});
-      } catch (error) {
-        console.log(`Failed to process webhook: ${error}`);
-        res.status(500).send(error.message);
-      }
+  app.post("/webhooks", verifyShopifyWebhooks, async (req, res) => {
+    try {
+      await Shopify.Webhooks.Registry.process(req, res);
+      console.log(`Webhook processed, returned status code 200`);
+      res.status(200).send({});
+    } catch (error) {
+      console.log(`Failed to process webhook: ${error}`);
+      res.status(500).send(error.message);
     }
-  );
+  });
 
   app.get("/products-count", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
