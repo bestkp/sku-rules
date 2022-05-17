@@ -128,7 +128,7 @@ export async function createServer(
   //   }
   // }
 
-  app.post("//webhooks", async (req, res) => {
+  app.post("/webhooks", async (req, res) => {
     try {
       console.log(`Webhook before processed`, req.url);
       // const handler = await Shopify.Webhooks.Registry.getHandler("APP_UNINSTALLED");

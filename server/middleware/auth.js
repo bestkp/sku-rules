@@ -64,7 +64,7 @@ export default function applyAuthMiddleware(app) {
         shop: session.shop,
         accessToken: session.accessToken,
         topic: "APP_UNINSTALLED",
-        path: "/webhooks",
+        path: "webhooks",
       });
       console.log("webhook response in auth/callback", response);
       if (!response["APP_UNINSTALLED"].success) {
