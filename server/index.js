@@ -41,7 +41,7 @@ Shopify.Context.initialize({
 // persist this object in your app.
 const ACTIVE_SHOPIFY_SHOPS = {};
 Shopify.Webhooks.Registry.addHandler("APP_UNINSTALLED", {
-  path: "/webhooks",
+  path: "webhooks",
   webhookHandler: async (topic, shop, body) => {
     console.log("webhook handler", topic, shop);
     delete ACTIVE_SHOPIFY_SHOPS[shop];
