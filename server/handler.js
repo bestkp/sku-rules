@@ -67,7 +67,7 @@ export const GET_SUBSCRIPTION_URL = `
       appSubscriptionCreate(
           name: "SKU RULES PREMIUM"
           returnUrl: $returnUrl
-          test: false,
+          test: true,
           trialDays: 3,
           lineItems: [
             {

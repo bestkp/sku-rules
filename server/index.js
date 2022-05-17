@@ -58,22 +58,30 @@ export async function createServer(
   app.set("use-online-tokens", USE_ONLINE_TOKENS);
   app.use(cookieParser(Shopify.Context.API_SECRET_KEY));
 
-  applyAuthMiddleware(app);
-
   app.use(express.json());
 
-  app.use((req, res, next) => {
+  app.use(async (req, res, next) => {
     const shop = req.query.shop;
-    if (Shopify.Context.IS_EMBEDDED_APP && shop) {
+    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+    let sp = shop;
+    if (session) {
+      sp = shop || session.shop;
+    }
+    if (Shopify.Context.IS_EMBEDDED_APP && sp) {
       res.setHeader(
         "Content-Security-Policy",
-        `frame-ancestors https://${shop} https://admin.shopify.com;`
+        `frame-ancestors https://${sp} https://admin.shopify.com;`
       );
     } else {
-      res.setHeader("Content-Security-Policy", `frame-ancestors 'none';`);
+      res.setHeader(
+        "Content-Security-Policy",
+        `frame-ancestors 'https://*.myshopify.com';`
+      );
     }
     next();
   });
+
+  applyAuthMiddleware(app);
 
   async function verifyShopifyWebhooks(req, res, next) {
     const hmac = req.get("x-shopify-hmac-sha256");
