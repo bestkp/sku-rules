@@ -63,7 +63,7 @@ const SkuRules = ({ onConfig, count, updateSku }, ref) => {
       const response = await fetch("/app/save", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           firstLetter: values.firstLetter,
@@ -74,11 +74,11 @@ const SkuRules = ({ onConfig, count, updateSku }, ref) => {
           rulesRange: values.rulesRange,
           productRange: values.productRange,
           productOptions: values.productOptions,
-          ids: [1, 2, 3],
+          // ids: [1, 2, 3],
         }),
       });
       const data = await response.json();
-      if(data.status == 200) {
+      if (data.status == 200) {
         message.success("已设置");
         updateSku(() => {
           setSaving(false);
@@ -113,7 +113,7 @@ const SkuRules = ({ onConfig, count, updateSku }, ref) => {
       const response = await fetch("/app/getConfig", {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: null,
       });

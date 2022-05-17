@@ -30,9 +30,9 @@ const Index = () => {
     const token = await getSessionToken(app);
     setTableData({ ...tableData, loading: true });
     const url =
-        config && config.rulesRange == 1
-            ? `/app/getProducts?id=${config.collectId}`
-            : `/app/getProducts`;
+      config && config.rulesRange == 1
+        ? `/app/getProducts?id=${config.collectId}`
+        : `/app/getProducts`;
     try {
       const response = await fetch(url, {
         method: "GET",
@@ -89,6 +89,9 @@ const Index = () => {
           },
         });
         const updateStatus = await response.json();
+        if (updateStatus.data && JSON.stringify(updateStatus.data) === "{}") {
+          return;
+        }
         const {
           data: {
             is_generating,
@@ -98,9 +101,9 @@ const Index = () => {
           },
         } = updateStatus;
         console.log(
-            "updateStatus",
-            updateStatus,
-            parseInt((products_updated / total_products) * 100) + "%"
+          "updateStatus",
+          updateStatus,
+          parseInt((products_updated / total_products) * 100) + "%"
         );
         setModal({
           ...modal,
@@ -112,6 +115,12 @@ const Index = () => {
           clearInterval(timer.current);
           getProductVariants();
           ruleRef.current.getConfig();
+          await fetch("/app/reset/variable", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
         }
       } catch (err) {
         message.error(err);
@@ -122,34 +131,34 @@ const Index = () => {
     getProductVariants();
   }, [config.rulesRange, config.collectId]);
   return (
-      <div style={{ padding: 40 }}>
-        <SkuRules
-            // onConfig={handleConfigChange}
-            count={count}
-            updateSku={updateSku}
-            ref={ruleRef}
-        ></SkuRules>
-        <SkuPreview tableData={tableData} config={config}></SkuPreview>
-        <Modal
-            title={"产品SKU生成"}
-            maskClosable={false}
-            visible={modal.visible}
-            closable={modal.percent >= 100}
-            footer={null}
-            onCancel={() => {
-              setModal({ ...modal, visible: false });
-            }}
-        >
-          <div style={{ margin: "30px 0 40px" }}>
-            <p>{`${count}个产品的SKU正在按照规则生成，请耐心等待！为确保SKU生成的完整性，请勿关闭页面`}</p>
-            <Progress
-                strokeLinecap="square"
-                strokeWidth={20}
-                percent={modal.percent}
-            />
-          </div>
-        </Modal>
-      </div>
+    <div style={{ padding: 40 }}>
+      <SkuRules
+        // onConfig={handleConfigChange}
+        count={count}
+        updateSku={updateSku}
+        ref={ruleRef}
+      ></SkuRules>
+      <SkuPreview tableData={tableData} config={config}></SkuPreview>
+      <Modal
+        title={"产品SKU生成"}
+        maskClosable={false}
+        visible={modal.visible}
+        closable={modal.percent >= 100}
+        footer={null}
+        onCancel={() => {
+          setModal({ ...modal, visible: false });
+        }}
+      >
+        <div style={{ margin: "30px 0 40px" }}>
+          <p>{`${count}个产品的SKU正在按照规则生成，请耐心等待！为确保SKU生成的完整性，请勿关闭页面`}</p>
+          <Progress
+            strokeLinecap="square"
+            strokeWidth={20}
+            percent={modal.percent}
+          />
+        </div>
+      </Modal>
+    </div>
   );
 };
 
