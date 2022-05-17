@@ -19,6 +19,7 @@ import "dotenv/config";
 
 import applyAuthMiddleware from "./middleware/auth.js";
 import verifyRequest from "./middleware/verify-request.js";
+import bodyParser from "body-parser";
 
 const USE_ONLINE_TOKENS = true;
 const TOP_LEVEL_OAUTH_COOKIE = "shopify_top_level_oauth";
@@ -58,6 +59,26 @@ export async function createServer(
   app.set("active-shopify-shops", ACTIVE_SHOPIFY_SHOPS);
   app.set("use-online-tokens", USE_ONLINE_TOKENS);
   app.use(cookieParser(Shopify.Context.API_SECRET_KEY));
+
+  app.post("/webhooks", async (req, res) => {
+    try {
+      console.log(`Webhook before processed`, req.url);
+      // const handler = await Shopify.Webhooks.Registry.getHandler("APP_UNINSTALLED");
+      // const shop = req.get("X-Shopify-Shop-Domain");
+      // const topic = req.get("X-Shopify-Topic");
+      // console.log('sdsdsdsdsdsd', handler, shop, topic)
+      await Shopify.Webhooks.Registry.process(req, res);
+      // if(handler.path === "/webhooks") {
+      //   await handler.webhookHandler(topic, shop)
+      // }
+      console.log(`Webhook processed, returned status code 200`);
+      // res.status(200).send({msg: "ok"});
+      // res.status(200).send({});
+    } catch (error) {
+      console.log(`Failed to process webhook: ${error}`);
+      res.status(500).send(error.message);
+    }
+  });
 
   app.use(express.json());
 
@@ -127,26 +148,6 @@ export async function createServer(
   //     await next();
   //   }
   // }
-
-  app.post("/webhooks", async (req, res) => {
-    try {
-      console.log(`Webhook before processed`, req.url);
-      // const handler = await Shopify.Webhooks.Registry.getHandler("APP_UNINSTALLED");
-      // const shop = req.get("X-Shopify-Shop-Domain");
-      // const topic = req.get("X-Shopify-Topic");
-      // console.log('sdsdsdsdsdsd', handler, shop, topic)
-      await Shopify.Webhooks.Registry.process(req, res);
-      // if(handler.path === "/webhooks") {
-      //   await handler.webhookHandler(topic, shop)
-      // }
-      console.log(`Webhook processed, returned status code 200`);
-      // res.status(200).send({msg: "ok"});
-      // res.status(200).send({});
-    } catch (error) {
-      console.log(`Failed to process webhook: ${error}`);
-      res.status(500).send(error.message);
-    }
-  });
 
   app.get("/products-count", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
@@ -275,44 +276,54 @@ export async function createServer(
   };
   // app.use(bodyParser.text() )
   // app 保存配置 / 更新
-  app.post("/app/save", verifyRequest(app), async (req, res) => {
-    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
-    const { upsert } = model;
-    const postData = JSON.parse(req.body);
-    console.log("ssssave", postData);
-    const shopId = session.shop;
-    console.log("app-save received", { storeId: shopId, ...postData });
-    try {
-      let response = await upsert({ storeID: shopId, ...postData });
-      res.status(200).send({ status: 200 });
-    } catch (err) {
-      console.log("SSSS", err);
-      res.status(500).send({
-        status: 4040,
-        data: err,
-      });
+  app.post(
+    "/app/save",
+    verifyRequest(app),
+    bodyParser.text(),
+    async (req, res) => {
+      const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+      const { upsert } = model;
+      const postData = JSON.parse(req.body);
+      console.log("ssssave", postData);
+      const shopId = session.shop;
+      console.log("app-save received", { storeId: shopId, ...postData });
+      try {
+        let response = await upsert({ storeID: shopId, ...postData });
+        res.status(200).send({ status: 200 });
+      } catch (err) {
+        console.log("SSSS", err);
+        res.status(500).send({
+          status: 4040,
+          data: err,
+        });
+      }
     }
-  });
+  );
   // 更新sku
-  app.post("/app/updateSku", verifyRequest(app), async (req, res) => {
-    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
-    try {
-      const config = JSON.parse(req.body);
-      console.log("updateSkuupdateSku", config);
-      await startUpdate(session, config, session.shop);
-      res.status(200).send({
-        status: 200,
-        msg: "ok",
-        data: { status: "start" },
-      });
-    } catch (err) {
-      res.status(500).send({
-        status: 4040,
-        msg: "error",
-        data: err,
-      });
+  app.post(
+    "/app/updateSku",
+    verifyRequest(app),
+    bodyParser.text(),
+    async (req, res) => {
+      const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+      try {
+        const config = JSON.parse(req.body);
+        console.log("updateSkuupdateSku", config);
+        await startUpdate(session, config, session.shop);
+        res.status(200).send({
+          status: 200,
+          msg: "ok",
+          data: { status: "start" },
+        });
+      } catch (err) {
+        res.status(500).send({
+          status: 4040,
+          msg: "error",
+          data: err,
+        });
+      }
     }
-  });
+  );
   let updateRes = {};
   let updateVariables = {};
 
