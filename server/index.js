@@ -88,8 +88,8 @@ export async function createServer(
       res.status(401).send("Couldn't verify Shopify webhook HMAC");
     } else {
       console.log("Successfully verified Shopify webhook HMAC");
+      await next();
     }
-    await next();
   }
 
   app.post(
@@ -99,6 +99,7 @@ export async function createServer(
       try {
         await Shopify.Webhooks.Registry.process(req, res);
         console.log(`Webhook processed, returned status code 200`);
+        res.status(200).send({});
       } catch (error) {
         console.log(`Failed to process webhook: ${error}`);
         res.status(500).send(error.message);
@@ -493,7 +494,7 @@ export async function createServer(
     verifyShopifyWebhooks,
     async (req, res) => {
       try {
-        res.status(200).send();
+        res.status(200).send({});
       } catch (error) {
         console.log(`Failed to process webhook: ${error}`);
       }
@@ -501,14 +502,14 @@ export async function createServer(
   );
   app.post("/customers/redact", verifyShopifyWebhooks, async (req, res) => {
     try {
-      res.status(200).send();
+      res.status(200).send({});
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
     }
   });
   app.post("/shop/redact", verifyShopifyWebhooks, async (req, res) => {
     try {
-      res.status(200).send();
+      res.status(200).send({});
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
     }
