@@ -66,7 +66,7 @@ export default function applyAuthMiddleware(app) {
         topic: "APP_UNINSTALLED",
         path: "/webhooks",
       });
-
+      console.log("webhook response in auth/callback", response);
       if (!response["APP_UNINSTALLED"].success) {
         console.log(
           `Failed to register APP_UNINSTALLED webhook: ${response.result}`

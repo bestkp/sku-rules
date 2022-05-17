@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import { Shopify, ApiVersion } from "@shopify/shopify-api";
 import crypto from "crypto";
 import async from "async";
-import bodyParser from "body-parser";
+// import bodyParser from "body-parser";
 import getRawBody from "raw-body";
 import * as model from "../model/index.js";
 import { upsert } from "../model/index.js";
@@ -43,6 +43,7 @@ const ACTIVE_SHOPIFY_SHOPS = {};
 Shopify.Webhooks.Registry.addHandler("APP_UNINSTALLED", {
   path: "/webhooks",
   webhookHandler: async (topic, shop, body) => {
+    console.log("webhook handler", topic, shop);
     delete ACTIVE_SHOPIFY_SHOPS[shop];
   },
 });
@@ -78,13 +79,22 @@ export async function createServer(
         `frame-ancestors 'https://*.myshopify.com';`
       );
     }
-    next();
+    await next();
   });
   app.use(async (req, res, next) => {
-    const hmac = req.get("x-shopify-hmac-sha256");
-    if (hmac) {
+    const hmac = req.get("X-Shopify-Hmac-Sha256");
+    console.log("in validWebhook1", hmac, req.url);
+    if (hmac && req.url !== "/webhooks") {
+      if (req.url === "/webhooks") {
+        const generatedHash = crypto
+          .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
+          .update(JSON.stringify(req.body), "utf8")
+          .digest("base64");
+        console.log("generatedHash", generatedHash);
+      }
       // const shop = req.get('x-shopify-shop-domain')
       const rawBody = await getRawBody(req);
+      console.log("in validWebhook2", hmac, req.url, rawBody);
       const digest = crypto
         .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
         .update(new Buffer(rawBody, "utf8"))
@@ -96,7 +106,7 @@ export async function createServer(
         console.log("Successfully verified Shopify webhook HMAC");
       }
     }
-    next();
+    await next();
   });
 
   applyAuthMiddleware(app);
@@ -120,9 +130,18 @@ export async function createServer(
 
   app.post("/webhooks", async (req, res) => {
     try {
+      console.log(`Webhook before processed`);
+      // const handler = await Shopify.Webhooks.Registry.getHandler("APP_UNINSTALLED");
+      // const shop = req.get("X-Shopify-Shop-Domain");
+      // const topic = req.get("X-Shopify-Topic");
+      // console.log('sdsdsdsdsdsd', handler, shop, topic)
       await Shopify.Webhooks.Registry.process(req, res);
+      // if(handler.path === "/webhooks") {
+      //   await handler.webhookHandler(topic, shop)
+      // }
       console.log(`Webhook processed, returned status code 200`);
-      res.status(200).send({});
+      // res.status(200).send({msg: "ok"});
+      // res.status(200).send({});
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
       res.status(500).send(error.message);
@@ -256,54 +275,44 @@ export async function createServer(
   };
   // app.use(bodyParser.text() )
   // app 保存配置 / 更新
-  app.post(
-    "/app/save",
-    verifyRequest(app),
-    bodyParser.text(),
-    async (req, res) => {
-      const session = await Shopify.Utils.loadCurrentSession(req, res, true);
-      const { upsert } = model;
-      const postData = JSON.parse(req.body);
-      console.log("ssssave", postData);
-      const shopId = session.shop;
-      console.log("app-save received", { storeId: shopId, ...postData });
-      try {
-        let response = await upsert({ storeID: shopId, ...postData });
-        res.status(200).send({ status: 200 });
-      } catch (err) {
-        console.log("SSSS", err);
-        res.status(500).send({
-          status: 4040,
-          data: err,
-        });
-      }
+  app.post("/app/save", verifyRequest(app), async (req, res) => {
+    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+    const { upsert } = model;
+    const postData = JSON.parse(req.body);
+    console.log("ssssave", postData);
+    const shopId = session.shop;
+    console.log("app-save received", { storeId: shopId, ...postData });
+    try {
+      let response = await upsert({ storeID: shopId, ...postData });
+      res.status(200).send({ status: 200 });
+    } catch (err) {
+      console.log("SSSS", err);
+      res.status(500).send({
+        status: 4040,
+        data: err,
+      });
     }
-  );
+  });
   // 更新sku
-  app.post(
-    "/app/updateSku",
-    verifyRequest(app),
-    bodyParser.text(),
-    async (req, res) => {
-      const session = await Shopify.Utils.loadCurrentSession(req, res, true);
-      try {
-        const config = JSON.parse(req.body);
-        console.log("updateSkuupdateSku", config);
-        await startUpdate(session, config, session.shop);
-        res.status(200).send({
-          status: 200,
-          msg: "ok",
-          data: { status: "start" },
-        });
-      } catch (err) {
-        res.status(500).send({
-          status: 4040,
-          msg: "error",
-          data: err,
-        });
-      }
+  app.post("/app/updateSku", verifyRequest(app), async (req, res) => {
+    const session = await Shopify.Utils.loadCurrentSession(req, res, true);
+    try {
+      const config = JSON.parse(req.body);
+      console.log("updateSkuupdateSku", config);
+      await startUpdate(session, config, session.shop);
+      res.status(200).send({
+        status: 200,
+        msg: "ok",
+        data: { status: "start" },
+      });
+    } catch (err) {
+      res.status(500).send({
+        status: 4040,
+        msg: "error",
+        data: err,
+      });
     }
-  );
+  });
   let updateRes = {};
   let updateVariables = {};
 
