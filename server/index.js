@@ -80,6 +80,52 @@ export async function createServer(
     }
   });
 
+  async function verifyShopifyWebhooks(req, res, next) {
+    const hmac = req.get("x-shopify-hmac-sha256");
+    // const shop = req.get('x-shopify-shop-domain')
+    console.log("vvvvvvverify webhook", req.url);
+    const rawBody = await getRawBody(req);
+    console.log("vvvvvvverify webhook11111", rawBody);
+    const generatedHash = crypto
+      .createHmac("sha256", Shopify.Context.API_SECRET_KEY)
+      .update(rawBody, "utf8")
+      .digest("base64");
+    console.log("vvvvvvverify webhook222222", generatedHash, hmac);
+    if (!Shopify.Utils.safeCompare(generatedHash, hmac)) {
+      res.status(401).send("Couldn't verify Shopify webhook HMAC");
+    } else {
+      console.log("Successfully verified Shopify webhook HMAC");
+      await next();
+    }
+  }
+
+  // Mandatory Webhooks
+  app.post(
+    "/customers/data_request",
+    verifyShopifyWebhooks,
+    async (req, res) => {
+      try {
+        res.status(200).send({});
+      } catch (error) {
+        console.log(`Failed to process webhook: ${error}`);
+      }
+    }
+  );
+  app.post("/customers/redact", verifyShopifyWebhooks, async (req, res) => {
+    try {
+      res.status(200).send({});
+    } catch (error) {
+      console.log(`Failed to process webhook: ${error}`);
+    }
+  });
+  app.post("/shop/redact", verifyShopifyWebhooks, async (req, res) => {
+    try {
+      res.status(200).send({});
+    } catch (error) {
+      console.log(`Failed to process webhook: ${error}`);
+    }
+  });
+
   app.use(express.json());
 
   app.use(async (req, res, next) => {
@@ -131,25 +177,6 @@ export async function createServer(
   // });
 
   applyAuthMiddleware(app);
-
-  async function verifyShopifyWebhooks(req, res, next) {
-    const hmac = req.get("x-shopify-hmac-sha256");
-    // const shop = req.get('x-shopify-shop-domain')
-    console.log("vvvvvvverify webhook", req.url);
-    const rawBody = await getRawBody(req);
-    console.log("vvvvvvverify webhook11111", rawBody);
-    const generatedHash = crypto
-      .createHmac("sha256", Shopify.Context.API_SECRET_KEY)
-      .update(rawBody, "utf8")
-      .digest("base64");
-    console.log("vvvvvvverify webhook222222", generatedHash, hmac);
-    if (!Shopify.Utils.safeCompare(generatedHash, hmac)) {
-      res.status(401).send("Couldn't verify Shopify webhook HMAC");
-    } else {
-      console.log("Successfully verified Shopify webhook HMAC");
-      await next();
-    }
-  }
 
   app.get("/products-count", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
@@ -529,33 +556,6 @@ export async function createServer(
       res.status(200).send(response.body);
     } catch (error) {
       res.status(500).send(error.message);
-    }
-  });
-
-  // Mandatory Webhooks
-  app.post(
-    "/customers/data_request",
-    verifyShopifyWebhooks,
-    async (req, res) => {
-      try {
-        res.status(200).send({});
-      } catch (error) {
-        console.log(`Failed to process webhook: ${error}`);
-      }
-    }
-  );
-  app.post("/customers/redact", verifyShopifyWebhooks, async (req, res) => {
-    try {
-      res.status(200).send({});
-    } catch (error) {
-      console.log(`Failed to process webhook: ${error}`);
-    }
-  });
-  app.post("/shop/redact", verifyShopifyWebhooks, async (req, res) => {
-    try {
-      res.status(200).send({});
-    } catch (error) {
-      console.log(`Failed to process webhook: ${error}`);
     }
   });
 
