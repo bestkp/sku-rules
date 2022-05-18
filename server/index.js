@@ -20,8 +20,6 @@ import "dotenv/config";
 import applyAuthMiddleware from "./middleware/auth.js";
 import verifyRequest from "./middleware/verify-request.js";
 import bodyParser from "body-parser";
-import crypto_1 from "crypto";
-import context_1 from "../context";
 
 const USE_ONLINE_TOKENS = true;
 const TOP_LEVEL_OAUTH_COOKIE = "shopify_top_level_oauth";
@@ -140,7 +138,7 @@ export async function createServer(
     console.log("vvvvvvverify webhook", req.url);
     const rawBody = await getRawBody(req);
     console.log("vvvvvvverify webhook11111", rawBody);
-    const generatedHash = crypto_1
+    const generatedHash = crypto
       .createHmac("sha256", Shopify.Context.API_SECRET_KEY)
       .update(rawBody, "utf8")
       .digest("base64");
