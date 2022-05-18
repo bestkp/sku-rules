@@ -20,6 +20,8 @@ import "dotenv/config";
 import applyAuthMiddleware from "./middleware/auth.js";
 import verifyRequest from "./middleware/verify-request.js";
 import bodyParser from "body-parser";
+import crypto_1 from "crypto";
+import context_1 from "../context";
 
 const USE_ONLINE_TOKENS = true;
 const TOP_LEVEL_OAUTH_COOKIE = "shopify_top_level_oauth";
@@ -102,52 +104,54 @@ export async function createServer(
     }
     await next();
   });
-  app.use(async (req, res, next) => {
-    const hmac = req.get("X-Shopify-Hmac-Sha256");
-    console.log("in validWebhook1", hmac, req.url);
-    if (hmac && req.url !== "/webhooks") {
-      if (req.url === "/webhooks") {
-        const generatedHash = crypto
-          .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
-          .update(JSON.stringify(req.body), "utf8")
-          .digest("base64");
-        console.log("generatedHash", generatedHash);
-      }
-      // const shop = req.get('x-shopify-shop-domain')
-      const rawBody = await getRawBody(req);
-      console.log("in validWebhook2", hmac, req.url, rawBody);
-      const digest = crypto
-        .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
-        .update(new Buffer(rawBody, "utf8"))
-        .digest("base64");
-
-      if (digest !== hmac) {
-        res.status(401).send("Couldn't verify Shopify webhook HMAC");
-      } else {
-        console.log("Successfully verified Shopify webhook HMAC");
-      }
-    }
-    await next();
-  });
+  // app.use(async (req, res, next) => {
+  //   const hmac = req.get("X-Shopify-Hmac-Sha256");
+  //   console.log("in validWebhook1", hmac, req.url);
+  //   if (hmac && req.url !== "/webhooks") {
+  //     if (req.url === "/webhooks") {
+  //       const generatedHash = crypto
+  //         .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
+  //         .update(JSON.stringify(req.body), "utf8")
+  //         .digest("base64");
+  //       console.log("generatedHash", generatedHash);
+  //     }
+  //     // const shop = req.get('x-shopify-shop-domain')
+  //     const rawBody = await getRawBody(req);
+  //     console.log("in validWebhook2", hmac, req.url, rawBody);
+  //     const digest = crypto
+  //       .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
+  //       .update(new Buffer(rawBody, "utf8"))
+  //       .digest("base64");
+  //
+  //     if (digest !== hmac) {
+  //       res.status(401).send("Couldn't verify Shopify webhook HMAC");
+  //     } else {
+  //       console.log("Successfully verified Shopify webhook HMAC");
+  //     }
+  //   }
+  //   await next();
+  // });
 
   applyAuthMiddleware(app);
 
-  // async function verifyShopifyWebhooks(req, res, next) {
-  //   const hmac = req.get("x-shopify-hmac-sha256");
-  //   // const shop = req.get('x-shopify-shop-domain')
-  //   const rawBody = await getRawBody(req);
-  //   const digest = crypto
-  //     .createHmac("SHA256", process.env.SHOPIFY_API_SECRET)
-  //     .update(new Buffer(rawBody, "utf8"))
-  //     .digest("base64");
-  //
-  //   if (digest !== hmac) {
-  //     res.status(401).send("Couldn't verify Shopify webhook HMAC");
-  //   } else {
-  //     console.log("Successfully verified Shopify webhook HMAC");
-  //     await next();
-  //   }
-  // }
+  async function verifyShopifyWebhooks(req, res, next) {
+    const hmac = req.get("x-shopify-hmac-sha256");
+    // const shop = req.get('x-shopify-shop-domain')
+    console.log("vvvvvvverify webhook", req.url);
+    const rawBody = await getRawBody(req);
+    console.log("vvvvvvverify webhook11111", rawBody);
+    const generatedHash = crypto_1
+      .createHmac("sha256", Shopify.Context.API_SECRET_KEY)
+      .update(rawBody, "utf8")
+      .digest("base64");
+    console.log("vvvvvvverify webhook222222", generatedHash, hmac);
+    if (!Shopify.Utils.safeCompare(generatedHash, hmac)) {
+      res.status(401).send("Couldn't verify Shopify webhook HMAC");
+    } else {
+      console.log("Successfully verified Shopify webhook HMAC");
+      await next();
+    }
+  }
 
   app.get("/products-count", verifyRequest(app), async (req, res) => {
     const session = await Shopify.Utils.loadCurrentSession(req, res, true);
@@ -236,15 +240,15 @@ export async function createServer(
       };
       params.since_id = cursor;
       let collectionProducts = {};
-      console.log(
-        "in getProductsFunc",
-        "id:",
-        id,
-        "cursor:",
-        cursor,
-        "params:",
-        params
-      );
+      // console.log(
+      //   "in getProductsFunc",
+      //   "id:",
+      //   id,
+      //   "cursor:",
+      //   cursor,
+      //   "params:",
+      //   params
+      // );
       // 7808827228391
       if (id) {
         params = {
@@ -284,14 +288,14 @@ export async function createServer(
       const session = await Shopify.Utils.loadCurrentSession(req, res, true);
       const { upsert } = model;
       const postData = JSON.parse(req.body);
-      console.log("ssssave", postData);
+      // console.log("ssssave", postData);
       const shopId = session.shop;
-      console.log("app-save received", { storeId: shopId, ...postData });
+      // console.log("app-save received", { storeId: shopId, ...postData });
       try {
         let response = await upsert({ storeID: shopId, ...postData });
         res.status(200).send({ status: 200 });
       } catch (err) {
-        console.log("SSSS", err);
+        // console.log("SSSS", err);
         res.status(500).send({
           status: 4040,
           data: err,
@@ -308,7 +312,7 @@ export async function createServer(
       const session = await Shopify.Utils.loadCurrentSession(req, res, true);
       try {
         const config = JSON.parse(req.body);
-        console.log("updateSkuupdateSku", config);
+        // console.log("updateSkuupdateSku", config);
         await startUpdate(session, config, session.shop);
         res.status(200).send({
           status: 200,
@@ -379,14 +383,14 @@ export async function createServer(
         updateVariables[session.shop].LIMIT,
         cursor
       );
-      console.log(
-        "productsObj",
-        session,
-        "shortId:",
-        shortId,
-        "cursor:",
-        cursor
-      );
+      // console.log(
+      //   "productsObj",
+      //   session,
+      //   "shortId:",
+      //   shortId,
+      //   "cursor:",
+      //   cursor
+      // );
       const {
         products,
         count: { count },
@@ -531,21 +535,25 @@ export async function createServer(
   });
 
   // Mandatory Webhooks
-  app.post("/customers/data_request", async (req, res) => {
+  app.post(
+    "/customers/data_request",
+    verifyShopifyWebhooks,
+    async (req, res) => {
+      try {
+        res.status(200).send({});
+      } catch (error) {
+        console.log(`Failed to process webhook: ${error}`);
+      }
+    }
+  );
+  app.post("/customers/redact", verifyShopifyWebhooks, async (req, res) => {
     try {
       res.status(200).send({});
     } catch (error) {
       console.log(`Failed to process webhook: ${error}`);
     }
   });
-  app.post("/customers/redact", async (req, res) => {
-    try {
-      res.status(200).send({});
-    } catch (error) {
-      console.log(`Failed to process webhook: ${error}`);
-    }
-  });
-  app.post("/shop/redact", async (req, res) => {
+  app.post("/shop/redact", verifyShopifyWebhooks, async (req, res) => {
     try {
       res.status(200).send({});
     } catch (error) {
